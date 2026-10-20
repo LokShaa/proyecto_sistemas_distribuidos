@@ -1,0 +1,53 @@
+version: '3.8'
+
+networks:
+  red_publica:
+    driver: bridge
+  red_interna:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
+
+services:
+  bd-relacional:
+    image: postgres:15-alpine
+    container_name: bd-relacional
+    restart: always
+    environment:
+      POSTGRES_DB: negocio_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - red_interna
+
+  modulo-a:
+    build: ./modulo-a
+    container_name: modulo-a
+    ports:
+      - "8080:8080"
+    environment:
+      - MODULO_B_URL=http://modulo-b:5000
+      - MODULO_C_URL=http://modulo-c:6000
+    networks:
+      - red_publica
+      - red_interna
+
+  modulo-b:
+    build: ./modulo-b
+    container_name: modulo-b
+    environment:
+      - DB_HOST=bd-relacional
+    networks:
+      - red_interna
+
+  modulo-c:
+    build: ./modulo-c
+    container_name: modulo-c
+    environment:
+      - MONGO_URI=${MONGO_URI}
+    networks:
+      - red_interna
