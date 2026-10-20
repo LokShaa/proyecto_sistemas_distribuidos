@@ -1,0 +1,48 @@
+{
+	"info": {
+		"name": "Proyecto Sistemas Distribuidos",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Transacción Exitosa",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"cuenta_origen\": \"ACC-10023\",\n  \"cuenta_destino\": \"ACC-90412\",\n  \"monto\": 15000.50,\n  \"moneda\": \"CLP\",\n  \"descripcion\": \"Pago de servicios\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/transacciones",
+					"protocol": "http",
+					"host": [ "localhost" ],
+					"port": "8080",
+					"path": [ "api", "transacciones" ]
+				}
+			}
+		},
+		{
+			"name": "2. Transacción Fallida (Falta Monto)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"cuenta_origen\": \"ACC-10023\",\n  \"cuenta_destino\": \"ACC-90412\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/api/transacciones",
+					"protocol": "http",
+					"host": [ "localhost" ],
+					"port": "8080",
+					"path": [ "api", "transacciones" ]
+				}
+			}
+		}
+	]
+}
