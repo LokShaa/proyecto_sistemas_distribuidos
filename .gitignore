@@ -1,0 +1,14 @@
+# Entornos virtuales y dependencias
+node_modules/
+__pycache__/
+*.pyc
+env/
+venv/
+.env
+
+# Compilados de Go
+modulo-c/modulo-c
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
