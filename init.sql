@@ -5,5 +5,6 @@ CREATE TABLE IF NOT EXISTS transacciones (
     monto NUMERIC(12, 2) NOT NULL,
     moneda VARCHAR(10) NOT NULL,
     descripcion VARCHAR(255),
+    estado VARCHAR(20) NOT NULL DEFAULT 'RECIBIDO',
     fecha TIMESTAMP NOT NULL
 );

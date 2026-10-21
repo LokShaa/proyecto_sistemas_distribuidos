@@ -22,6 +22,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d negocio_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - red_interna
 
@@ -40,6 +45,9 @@ services:
   modulo-b:
     build: ./modulo-b
     container_name: modulo-b
+    depends_on:
+      bd-relacional:
+        condition: service_healthy
     environment:
       - DB_HOST=bd-relacional
     networks:
