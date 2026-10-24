@@ -89,6 +89,9 @@ func guardarAuditoria(registro RegistroAuditoria) error {
 	defer cancel()
 
 	_, err := coleccion().InsertOne(ctx, registro)
+	if err == nil {
+		log.Println("[MODULO-C] Evento de auditoría insertado correctamente en MongoDB Atlas.")
+	}
 	return err
 }
 
