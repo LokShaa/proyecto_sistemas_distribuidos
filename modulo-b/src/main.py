@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID, uuid4
+import json
+import urllib.request
 
 import psycopg2
 from fastapi import APIRouter, FastAPI, HTTPException, status
@@ -83,7 +85,26 @@ def save_transaction(transaction: TransaccionCreate) -> TransaccionResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="PostgreSQL no devolvio la transaccion creada.",
         )
-
+    auditoria_payload = {
+        "TransaccionID": str(row[0]),
+        "CuentaOrigen": row[1],
+        "CuentaDestino": row[2],
+        "Monto": float(row[3]),
+        "Moneda": row[4],
+        "Descripcion": row[5] if row[5] else ""
+    }
+    
+    try:
+        req = urllib.request.Request(
+            "http://modulo-c:6000/auditoria",
+            data=json.dumps(auditoria_payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        print(f"Error interno: No se pudo auditar en Módulo C -> {e}")
+        
     return TransaccionResponse(
         id=row[0],
         cuenta_origen=row[1],

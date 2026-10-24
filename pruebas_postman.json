@@ -1,11 +1,11 @@
 {
 	"info": {
-		"name": "Proyecto Sistemas Distribuidos",
+		"name": "Proyecto_sistema",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "1. Transacción Exitosa",
+			"name": "Transacción Exitosa",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -25,7 +25,7 @@
 			}
 		},
 		{
-			"name": "2. Transacción Fallida (Falta Monto)",
+			"name": "Transacción Fallida",
 			"request": {
 				"method": "POST",
 				"header": [
