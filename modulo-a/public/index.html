@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tienda SneakerStore - Checkout Distribuido</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 1.5rem; }
+    .container { max-width: 1050px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+    h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    .badge-status { background: rgba(16, 185, 129, 0.15); color: var(--success); padding: 0.3rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.5rem; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    h2 { font-size: 1.1rem; margin-bottom: 1rem; color: #e2e8f0; }
+
+    /* Catálogo de Zapatillas */
+    .catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .product-card { background: #0b1120; border: 2px solid var(--border); border-radius: 8px; padding: 0.75rem; cursor: pointer; text-align: center; transition: all 0.2s; }
+    .product-card:hover { border-color: var(--accent); }
+    .product-card.selected { border-color: var(--accent); background: rgba(37, 99, 235, 0.1); }
+    .product-icon { font-size: 2rem; margin-bottom: 0.25rem; }
+    .product-title { font-size: 0.85rem; font-weight: 600; }
+    .product-price { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+    /* Formulario de Checkout */
+    .form-group { margin-bottom: 0.75rem; }
+    label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.25rem; }
+    input, select { width: 100%; padding: 0.55rem; border-radius: 6px; border: 1px solid var(--border); background: #0b1120; color: var(--text); font-size: 0.85rem; }
+    input:focus, select:focus { outline: 2px solid var(--accent); }
+    button.btn-buy { width: 100%; padding: 0.75rem; background: var(--accent); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; }
+    button.btn-buy:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Consola y Tabla */
+    pre { background: #0b1120; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; color: #38bdf8; font-family: monospace; font-size: 0.8rem; overflow-x: auto; min-height: 160px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 0.5rem; }
+    th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>SneakerStore - Checkout Directo</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">Venta procesada mediante arquitectura distribuida (Fastify &rarr; FastAPI &rarr; Go)</p>
+      </div>
+      <span class="badge-status">Sistema Online</span>
+    </header>
+
+    <div class="grid">
+      <!-- Selección y Datos del Cliente -->
+      <div class="card">
+        <h2>1. Selecciona tu Zapatilla</h2>
+        <div class="catalog">
+          <div class="product-card selected" onclick="selectProduct('Nike Air Max 90', 89990, this)">
+            <div class="product-icon">👟</div>
+            <div class="product-title">Air Max 90</div>
+            <div class="product-price">$89.990 CLP</div>
+          </div>
+          <div class="product-card" onclick="selectProduct('Adidas Ultraboost', 119990, this)">
+            <div class="product-icon">👟</div>
+            <div class="product-title">Ultraboost</div>
+            <div class="product-price">$119.990 CLP</div>
+          </div>
+          <div class="product-card" onclick="selectProduct('Puma Suede Classic', 59990, this)">
+            <div class="product-icon">👟</div>
+            <div class="product-title">Puma Suede</div>
+            <div class="product-price">$59.990 CLP</div>
+          </div>
+        </div>
+
+        <h2>2. Datos de Envío y Pago</h2>
+        <form id="orderForm">
+          <div class="form-group">
+            <label>Cuenta Comprador</label>
+            <input type="text" id="origen" value="CLI-MARTIN-01" required>
+          </div>
+          <div class="form-group">
+            <label>Cuenta Comercio</label>
+            <input type="text" id="destino" value="COMERCIO-SNEAKERSTORE" readonly style="opacity: 0.8;">
+          </div>
+          <div class="form-group" style="display: flex; gap: 0.5rem;">
+            <div style="flex: 2;">
+              <label>Monto a Pagar ($)</label>
+              <input type="number" id="monto" value="89990" readonly style="opacity: 0.8;">
+            </div>
+            <div style="flex: 1;">
+              <label>Talla (EU)</label>
+              <select id="talla">
+                <option value="40">40</option>
+                <option value="41" selected>41</option>
+                <option value="42">42</option>
+                <option value="43">43</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" id="productoNombre" value="Nike Air Max 90">
+          <button type="submit" id="btnSubmit" class="btn-buy">Confirmar Compra</button>
+        </form>
+      </div>
+
+      <!-- Consola de Respuesta del Gateway -->
+      <div class="card">
+        <h2>Detalle de la Transacción (Gateway)</h2>
+        <pre id="responseLog">// Selecciona un calzado y confirma tu compra para ver la persistencia...</pre>
+      </div>
+    </div>
+
+    <!-- Trazas de Auditoría en MongoDB -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2>Auditoría de Compras en MongoDB Atlas (Módulo C)</h2>
+        <button id="btnRefresh" style="background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer;">Refrescar</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Tx ID</th>
+            <th>Comprador &rarr; Destino</th>
+            <th>Monto</th>
+            <th>Hash de Seguridad (SHA-256)</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="auditTableBody">
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Sin compras registradas</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let currentProductName = 'Nike Air Max 90';
+
+    function selectProduct(name, price, element) {
+      document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
+      element.classList.add('selected');
+      currentProductName = name;
+      document.getElementById('monto').value = price;
+      document.getElementById('productoNombre').value = name;
+    }
+
+    const form = document.getElementById('orderForm');
+    const log = document.getElementById('responseLog');
+    const btnSubmit = document.getElementById('btnSubmit');
+    const btnRefresh = document.getElementById('btnRefresh');
+    const tbody = document.getElementById('auditTableBody');
+
+    async function loadAudits() {
+      try {
+        const res = await fetch('/api/auditorias');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">No hay trazas en MongoDB</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map(item => `
+          <tr>
+            <td style="font-family: monospace; font-size: 0.75rem;">${item.TransaccionID || item.transaccion_id || '-'}</td>
+            <td>${item.CuentaOrigen || item.cuenta_origen} &rarr; ${item.CuentaDestino || item.cuenta_destino}</td>
+            <td>$${Number(item.Monto || item.monto).toLocaleString('es-CL')} ${item.Moneda || item.moneda}</td>
+            <td style="font-family: monospace; font-size: 0.7rem; color: #38bdf8;">${(item.HashOperacion || item.hash_operacion || '').substring(0, 16)}...</td>
+            <td><span style="color: var(--success); font-weight: 600;">${item.Estado || item.estado || 'AUDITADO'}</span></td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error("Error al cargar auditorías:", err);
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Procesando pago...';
+      log.textContent = 'Enviando orden a través del API Gateway...';
+
+      const talla = document.getElementById('talla').value;
+      const payload = {
+        cuenta_origen: document.getElementById('origen').value,
+        cuenta_destino: document.getElementById('destino').value,
+        monto: parseFloat(document.getElementById('monto').value),
+        moneda: 'CLP',
+        descripcion: `Compra zapatillas: ${currentProductName} (Talla EU ${talla})`
+      };
+
+      try {
+        const res = await fetch('/api/transacciones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const json = await res.json();
+        log.textContent = JSON.stringify(json, null, 2);
+        await loadAudits();
+      } catch (err) {
+        log.textContent = 'Error: ' + err.message;
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Confirmar Compra';
+      }
+    });
+
+    btnRefresh.addEventListener('click', loadAudits);
+    loadAudits();
+  </script>
+</body>
+</html>

@@ -1,10 +1,19 @@
+const path = require('path');
 const fastify = require('fastify')({ logger: true });
+const fastifyStatic = require('@fastify/static');
 const { request } = require('undici');
 
 // Variables de entorno definidas en docker-compose
 const MODULO_B_URL = process.env.MODULO_B_URL || 'http://modulo-b:5000';
 const MODULO_C_URL = process.env.MODULO_C_URL || 'http://modulo-c:6000';
 
+// Servir la interfaz gráfica estática desde public/
+fastify.register(fastifyStatic, {
+  root: path.join(__dirname, '..', 'public'),
+  prefix: '/'
+});
+
+// Endpoint público: Ingesta y orquestación
 fastify.post('/api/transacciones', async (req, reply) => {
   const { cuenta_origen, cuenta_destino, monto, moneda, descripcion } = req.body || {};
 
@@ -29,23 +38,24 @@ fastify.post('/api/transacciones', async (req, reply) => {
 
     const transactionId = dataB.id || dataB.transaccion_id;
 
-    // 3. Notificación interna a Módulo C (Auditoría)
+    // 3. Llamar a Módulo C (Auditoría)
+    let auditData = null;
     try {
-      await request(`${MODULO_C_URL}/internal/audit`, {
+      const { statusCode: statusC, body: bodyC } = await request(`${MODULO_C_URL}/auditoria`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          transaccion_id: transactionId,
-          evento: 'TRANSACCION_CREADA',
-          timestamp: new Date().toISOString(),
-          origen: 'API-GATEWAY-NODEJS',
-          metadata_red: {
-            client_ip: req.ip,
-            user_agent: req.headers['user-agent'] || 'desconocido'
-          },
-          datos_operacion: { cuenta_origen, cuenta_destino, monto, moneda }
+          transaccion_id: String(transactionId),
+          cuenta_origen,
+          cuenta_destino,
+          monto: String(monto),
+          moneda,
+          descripcion: descripcion || ''
         })
       });
+      if (statusC === 201) {
+        auditData = await bodyC.json();
+      }
     } catch (auditErr) {
       fastify.log.warn('Aviso: fallo al registrar en auditoría: ' + auditErr.message);
     }
@@ -53,12 +63,26 @@ fastify.post('/api/transacciones', async (req, reply) => {
     // 4. Respuesta consolidada al cliente
     return reply.status(201).send({
       mensaje: 'Transacción procesada y auditada con éxito',
-      transaccion: dataB
+      transaccion: dataB,
+      auditoria: auditData
     });
 
   } catch (error) {
     fastify.log.error(error);
     return reply.status(500).send({ error: 'Error interno en comunicación de servicios' });
+  }
+});
+
+// Endpoint de apoyo para que la interfaz consulte el listado de MongoDB
+fastify.get('/api/auditorias', async (req, reply) => {
+  try {
+    const { statusCode, body } = await request(`${MODULO_C_URL}/auditorias`, {
+      method: 'GET'
+    });
+    const data = await body.json();
+    return reply.status(statusCode).send(data);
+  } catch (err) {
+    return reply.status(500).send([]);
   }
 });
 
