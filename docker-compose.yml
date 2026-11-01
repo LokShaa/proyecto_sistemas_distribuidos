@@ -21,7 +21,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d negocio_db"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d negocio_db" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -54,7 +54,7 @@ services:
   modulo-c:
     build: ./modulo-c
     container_name: modulo-c
-    environment:
-      - MONGO_URI=${MONGO_URI}
+    env_file:
+      - ./modulo-c/.env
     networks:
       - red_interna

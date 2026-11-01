@@ -169,15 +169,40 @@
           tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">No hay trazas en MongoDB</td></tr>';
           return;
         }
-        tbody.innerHTML = data.map(item => `
-          <tr>
-            <td style="font-family: monospace; font-size: 0.75rem;">${item.TransaccionID || item.transaccion_id || '-'}</td>
-            <td>${item.CuentaOrigen || item.cuenta_origen} &rarr; ${item.CuentaDestino || item.cuenta_destino}</td>
-            <td>$${Number(item.Monto || item.monto).toLocaleString('es-CL')} ${item.Moneda || item.moneda}</td>
-            <td style="font-family: monospace; font-size: 0.7rem; color: #38bdf8;">${(item.HashOperacion || item.hash_operacion || '').substring(0, 16)}...</td>
-            <td><span style="color: var(--success); font-weight: 600;">${item.Estado || item.estado || 'AUDITADO'}</span></td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = data.map(item => {
+          const txId = item.TransaccionID || item.transaccion_id || 'N/A';
+          const origen = item.CuentaOrigen || item.cuenta_origen || 'N/A';
+          const destino = item.CuentaDestino || item.cuenta_destino || 'N/A';
+
+          const rawMonto = (item.Monto ?? item.monto ?? '').toString().trim();
+          const rawMoneda = (item.Moneda || item.moneda || '').toString().trim();
+          const monedaLimpia = (rawMoneda && rawMoneda !== '-' && rawMoneda !== 'N/A' && rawMoneda !== 'undefined') ? ` ${rawMoneda}` : '';
+
+          const numMonto = Number(rawMonto);
+          let montoFormateado = 'N/A';
+          if (rawMonto !== '' && rawMonto !== 'N/A' && rawMonto !== '<nil>' && !Number.isNaN(numMonto)) {
+            montoFormateado = (numMonto === 0 && rawMoneda === '-')
+              ? 'N/A'
+              : `$${numMonto.toLocaleString('es-CL')}${monedaLimpia}`;
+          } else if (rawMonto && rawMonto !== 'N/A' && rawMonto !== '<nil>') {
+            montoFormateado = `Inválido (${rawMonto})`;
+          }
+
+          const hash = (item.HashOperacion || item.hash_operacion || '').substring(0, 16);
+          const estado = item.Estado || item.estado || 'AUDITADO';
+          const esExito = estado === 'EXITOSA' || estado === 'AUDITADO' || estado === 'RECIBIDO';
+          const colorEstado = esExito ? 'var(--success)' : '#ef4444';
+
+          return `
+            <tr>
+              <td style="font-family: monospace; font-size: 0.75rem;">${txId}</td>
+              <td>${origen} &rarr; ${destino}</td>
+              <td>${montoFormateado}</td>
+              <td style="font-family: monospace; font-size: 0.7rem; color: #38bdf8;">${hash ? hash + '...' : 'N/A'}</td>
+              <td><span style="color: ${colorEstado}; font-weight: 600;">${estado}</span></td>
+            </tr>
+          `;
+        }).join('');
       } catch (err) {
         console.error("Error al cargar auditorías:", err);
       }

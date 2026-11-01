@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -31,27 +32,29 @@ func getEnv(key, fallback string) string {
 }
 
 type AuditoriaPayload struct {
-	TransaccionID string          `json:"transaccion_id"`
-	CuentaOrigen  string          `json:"cuenta_origen"`
-	CuentaDestino string          `json:"cuenta_destino"`
-	Monto         json.Number     `json:"monto"`
-	Moneda        string          `json:"moneda"`
-	Descripcion   string          `json:"descripcion,omitempty"`
-	RawData       json.RawMessage `json:"-"`
+	TransaccionID string `json:"transaccion_id"`
+	CuentaOrigen  string `json:"cuenta_origen"`
+	CuentaDestino string `json:"cuenta_destino"`
+	Monto         any    `json:"monto"` // any para aceptar incluso montos malformados en transacciones fallidas
+	Moneda        string `json:"moneda"`
+	Descripcion   string `json:"descripcion,omitempty"`
+	Estado        string `json:"estado,omitempty"`        // NUEVO: estado del evento (ej. EXITOSA, FALLIDA, CAIDA_B)
+	DetalleError  string `json:"detalle_error,omitempty"` // NUEVO: motivo si hubo fallo
 }
 
 // RegistroAuditoria es el documento que se persiste en MongoDB.
 type RegistroAuditoria struct {
 	TransaccionID    string    `bson:"transaccion_id"`
-	HashOperacion    string    `bson:"hash_operacion"`    // SHA-256 del payload
-	TimestampLlegada time.Time `bson:"timestamp_llegada"` // cuando llegó al módulo C
-	IPOrigen         string    `bson:"ip_origen"`         // IP del solicitante (módulo A)
+	HashOperacion    string    `bson:"hash_operacion"`
+	TimestampLlegada time.Time `bson:"timestamp_llegada"`
+	IPOrigen         string    `bson:"ip_origen"`
 	CuentaOrigen     string    `bson:"cuenta_origen"`
 	CuentaDestino    string    `bson:"cuenta_destino"`
 	Monto            string    `bson:"monto"`
 	Moneda           string    `bson:"moneda"`
 	Descripcion      string    `bson:"descripcion,omitempty"`
-	Estado           string    `bson:"estado"` // siempre "AUDITADO"
+	Estado           string    `bson:"estado"`                  // Ahora guarda el estado real de lo que pasó
+	DetalleError     string    `bson:"detalle_error,omitempty"` // NUEVO: guarda el error de B, red o JSON
 }
 
 var mongoClient *mongo.Client
@@ -111,6 +114,14 @@ func extraerIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
+func limpiarTexto(val string, fallback string) string {
+	v := strings.TrimSpace(val)
+	if v == "" || v == "<nil>" || v == "undefined" {
+		return fallback
+	}
+	return v
+}
+
 func responderJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -137,23 +148,43 @@ func handlerAuditoria(w http.ResponseWriter, r *http.Request) {
 	// Deserializar payload
 	var payload AuditoriaPayload
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		// Si llega un JSON inválido, también lo registramos en MongoDB
+		_ = guardarAuditoria(RegistroAuditoria{
+			TransaccionID:    "N/A",
+			HashOperacion:    calcularHash(rawBody),
+			TimestampLlegada: time.Now().UTC(),
+			IPOrigen:         extraerIP(r),
+			CuentaOrigen:     "N/A",
+			CuentaDestino:    "N/A",
+			Monto:            "N/A",
+			Moneda:           "N/A",
+			Descripcion:      string(rawBody),
+			Estado:           "ERROR_JSON_INVALIDO",
+			DetalleError:     err.Error(),
+		})
 		responderJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "JSON inválido: " + err.Error(),
 		})
 		return
 	}
 
+	montoStr := "N/A"
+	if payload.Monto != nil {
+		montoStr = limpiarTexto(fmt.Sprintf("%v", payload.Monto), "N/A")
+	}
+
 	registro := RegistroAuditoria{
-		TransaccionID:    payload.TransaccionID,
+		TransaccionID:    limpiarTexto(payload.TransaccionID, "N/A"),
 		HashOperacion:    calcularHash(rawBody),
 		TimestampLlegada: time.Now().UTC(),
 		IPOrigen:         extraerIP(r),
-		CuentaOrigen:     payload.CuentaOrigen,
-		CuentaDestino:    payload.CuentaDestino,
-		Monto:            payload.Monto.String(),
-		Moneda:           payload.Moneda,
-		Descripcion:      payload.Descripcion,
-		Estado:           "AUDITADO",
+		CuentaOrigen:     limpiarTexto(payload.CuentaOrigen, "N/A"),
+		CuentaDestino:    limpiarTexto(payload.CuentaDestino, "N/A"),
+		Monto:            montoStr,
+		Moneda:           limpiarTexto(payload.Moneda, "N/A"),
+		Descripcion:      limpiarTexto(payload.Descripcion, "Sin descripción"),
+		Estado:           limpiarTexto(payload.Estado, "AUDITADO"),
+		DetalleError:     payload.DetalleError,
 	}
 
 	// Persistir en MongoDB Atlas
@@ -190,9 +221,9 @@ func handlerHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responderJSON(w, http.StatusOK, map[string]string{
-		"status":  "ok",
+		"status":   "ok",
 		"servicio": "modulo-c",
-		"db":      "MongoDB Atlas conectado",
+		"db":       "MongoDB Atlas conectado",
 	})
 }
 
@@ -240,9 +271,9 @@ func main() {
 
 	// Registrar rutas
 	mux := http.NewServeMux()
-	mux.HandleFunc("/auditoria", handlerAuditoria)  // POST - recibe desde Módulo A
-	mux.HandleFunc("/auditorias", handlerListar)    // GET  - lista las últimas trazas
-	mux.HandleFunc("/health", handlerHealth)        // GET  - healthcheck
+	mux.HandleFunc("/auditoria", handlerAuditoria) // POST - recibe desde Módulo A
+	mux.HandleFunc("/auditorias", handlerListar)   // GET  - lista las últimas trazas
+	mux.HandleFunc("/health", handlerHealth)       // GET  - healthcheck
 
 	addr := "0.0.0.0:" + serverPort
 	log.Printf("[MODULO-C] Escuchando en http://%s", addr)
