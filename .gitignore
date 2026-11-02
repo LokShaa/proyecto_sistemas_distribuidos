@@ -12,3 +12,7 @@ modulo-c/modulo-c
 # Archivos del sistema operativo
 .DS_Store
 Thumbs.db
+
+# Copias creadas anteriormente: pueden contener datos locales.
+backups/postgres/*
+!backups/postgres/.gitkeep
