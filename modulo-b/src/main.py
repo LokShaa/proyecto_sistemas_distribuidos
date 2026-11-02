@@ -3,12 +3,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import logging
 import os
+import fcntl
+import threading
 from typing import Annotated, Generator
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, FastAPI, HTTPException, Path, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from psycopg2 import pool
 import psycopg2
 
 # Configuración de Logging estructurado
@@ -21,78 +22,107 @@ logger = logging.getLogger("modulo-b")
 
 # Variables de entorno para PostgreSQL
 DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_BACKUP_HOST = os.getenv("DB_BACKUP_HOST", "bd-relacional-backup")
+DB_COORD_DIR = os.getenv("DB_COORD_DIR", "/coord")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_NAME = os.getenv("DB_NAME", "negocio_db")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres123")
-DB_MIN_CONN = int(os.getenv("DB_MIN_CONN", "1"))
-DB_MAX_CONN = int(os.getenv("DB_MAX_CONN", "10"))
 
-# Pool de conexiones multihilo
-db_pool: pool.ThreadedConnectionPool | None = None
+_failover_lock = threading.Lock()
+_fence_file = None
 
 
-def init_db_pool() -> None:
-    global db_pool
-    logger.info("Inicializando pool de conexiones a PostgreSQL (%s:%d/%s)...", DB_HOST, DB_PORT, DB_NAME)
-    try:
-        db_pool = pool.ThreadedConnectionPool(
-            minconn=DB_MIN_CONN,
-            maxconn=DB_MAX_CONN,
-            host=DB_HOST,
-            port=DB_PORT,
-            dbname=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-        )
-        logger.info("Pool de conexiones a PostgreSQL establecido exitosamente.")
-    except Exception as err:
-        logger.error("No se pudo inicializar el pool de conexiones: %s", err)
-        db_pool = None
+def connect(host: str) -> psycopg2.extensions.connection:
+    conn = psycopg2.connect(
+        host=host, port=DB_PORT, dbname=DB_NAME, user=DB_USER,
+        password=DB_PASSWORD, connect_timeout=3,
+    )
+    with conn.cursor() as cursor:
+        cursor.execute("SET synchronous_commit = remote_apply")
+    conn.commit()
+    return conn
 
 
-def close_db_pool() -> None:
-    global db_pool
-    if db_pool:
-        logger.info("Cerrando pool de conexiones a PostgreSQL...")
-        db_pool.closeall()
-        db_pool = None
-        logger.info("Pool de conexiones cerrado.")
+def active_connection() -> psycopg2.extensions.connection:
+    """Promueve la réplica solo si el proceso primario liberó el bloqueo local."""
+    global _fence_file
+    with _failover_lock:
+        marker = os.path.join(DB_COORD_DIR, "promoted")
+        if os.path.exists(marker):
+            conn = connect(DB_BACKUP_HOST)
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT pg_is_in_recovery()")
+                if cursor.fetchone()[0]:
+                    cursor.execute("SELECT pg_promote(wait => true, wait_seconds => 30)")
+                    if not cursor.fetchone()[0]:
+                        conn.close()
+                        raise psycopg2.OperationalError("No se pudo completar la promoción de la réplica.")
+            conn.autocommit = False
+            return conn
+        try:
+            return connect(DB_HOST)
+        except psycopg2.OperationalError:
+            logger.warning("No se pudo conectar al primario; comprobando su bloqueo.")
+
+        fence = open(os.path.join(DB_COORD_DIR, "primary.lock"), "a+")
+        try:
+            fcntl.flock(fence, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            fence.close()
+            raise psycopg2.OperationalError("El primario aún conserva el bloqueo; no se promueve la réplica.")
+
+        try:
+            conn = connect(DB_BACKUP_HOST)
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT pg_is_in_recovery()")
+                if cursor.fetchone()[0]:
+                    # Marcar antes de promover impide que el primario vuelva a arrancar.
+                    with open(marker, "w", encoding="utf-8") as file:
+                        file.write("standby promoted\n")
+                        file.flush()
+                        os.fsync(file.fileno())
+                    cursor.execute("SELECT pg_promote(wait => true, wait_seconds => 30)")
+                    if not cursor.fetchone()[0]:
+                        raise psycopg2.OperationalError("No se pudo promover la réplica.")
+            conn.autocommit = False
+            _fence_file = fence
+            logger.warning("Réplica promovida a primario; el primario anterior queda bloqueado.")
+            return conn
+        except Exception:
+            fence.close()
+            raise
 
 
 @contextmanager
 def get_db_connection() -> Generator[psycopg2.extensions.connection, None, None]:
-    global db_pool
-    if db_pool is None:
-        init_db_pool()
-        if db_pool is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="PostgreSQL no disponible (pool de conexiones inactivo).",
-            )
-
     conn = None
     try:
-        conn = db_pool.getconn()
+        conn = active_connection()
         yield conn
     except psycopg2.Error as err:
-        if conn:
-            conn.rollback()
+        if conn and not conn.closed:
+            try:
+                conn.rollback()
+            except psycopg2.Error:
+                logger.warning("No fue posible revertir la conexión interrumpida.")
         logger.error("Error en operación con PostgreSQL: %s", err)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Error en PostgreSQL: {err.pgerror or str(err)}",
         ) from err
     finally:
-        if conn and db_pool:
-            db_pool.putconn(conn)
+        if conn:
+            conn.close()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db_pool()
     yield
-    close_db_pool()
+    if _fence_file:
+        _fence_file.close()
 
 
 # Esquemas de datos con Pydantic
