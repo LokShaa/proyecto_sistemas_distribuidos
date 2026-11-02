@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+if [ -f /coord/promoted ]; then
+  exec /bin/sh /rejoin.sh
+fi
 # El bloqueo permanece en poder de flock mientras PostgreSQL está ejecutándose.
 exec flock -n /coord/primary.lock /bin/sh -c '
   if [ -f /coord/promoted ]; then
@@ -12,5 +15,5 @@ exec flock -n /coord/primary.lock /bin/sh -c '
     -c max_wal_senders=5 \
     -c wal_keep_size=256MB \
     -c synchronous_commit=local \
-    -c synchronous_standby_names=standby_b
+    -c synchronous_standby_names=""
 '

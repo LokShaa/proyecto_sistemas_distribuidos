@@ -13,6 +13,5 @@ modulo-c/modulo-c
 .DS_Store
 Thumbs.db
 
-# Copias creadas anteriormente: pueden contener datos locales.
 backups/postgres/*
 !backups/postgres/.gitkeep
