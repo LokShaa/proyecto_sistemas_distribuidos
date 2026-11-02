@@ -40,38 +40,3 @@ Para verificar que la informacion viajo en el orden requerido se debe realizar l
 3. Registro de auditoría en MongoDB (Módulo C)
    docker compose logs modulo-c
 
-## Replicación y failover del Módulo B
-
-`bd-relacional` es el PostgreSQL principal y conserva el volumen existente `pgdata`. `bd-relacional-backup` se inicializa como réplica física en el volumen separado `pgdata_2`. PostgreSQL replica los cambios y el Módulo B espera que la réplica los aplique antes de confirmar una compra. La primera sincronización puede tardar unos momentos; mientras no haya réplica síncrona, las compras esperan.
-
-Si el principal se detiene, la próxima petición al Módulo B detecta el fallo y promueve la réplica para recibir lecturas y escrituras. Un bloqueo en el volumen compartido `pg_coord` impide la promoción si el proceso principal sigue activo. Después de la promoción, una marca persistente impide que el antiguo principal arranque como servidor de escritura. Reiniciar el Módulo B mantiene la selección del servidor promovido.
-
-### Demostración
-
-1. Levante el proyecto con `docker compose up -d --build`. La configuración existente requiere el archivo `modulo-c/.env`.
-2. Espere a que la réplica se sincronice y confirme que aparezca `standby_b`, con `state` igual a `streaming` y `sync_state` igual a `sync`:
-
-   ```bash
-   docker compose exec bd-relacional psql -U postgres -d negocio_db -c "SELECT application_name, state, sync_state FROM pg_stat_replication;"
-   ```
-
-3. Realice una compra desde la página y consulte las transacciones en ambas instancias:
-
-   ```bash
-   docker compose exec bd-relacional psql -U postgres -d negocio_db -c "SELECT id, descripcion, monto FROM transacciones;"
-   docker compose exec bd-relacional-backup psql -U postgres -d negocio_db -c "SELECT id, descripcion, monto FROM transacciones;"
-   ```
-
-4. Detenga el principal con `docker stop bd-relacional` y realice otra compra. La siguiente petición provoca la promoción. Consulte el nuevo primario:
-
-   ```bash
-   docker compose exec bd-relacional-backup psql -U postgres -d negocio_db -c "SELECT pg_is_in_recovery(), id, descripcion FROM transacciones;"
-   ```
-
-   `pg_is_in_recovery` debe ser `f` y deben aparecer ambas compras.
-
-### Límites y recuperación
-
-La promoción puede tardar unos segundos y una petición que coincide con la caída puede fallar o quedar con resultado incierto. No reintente automáticamente una compra de resultado incierto: el cliente no dispone aún de claves de idempotencia. Si falla únicamente la réplica antes de una promoción, las escrituras en el principal esperan hasta que vuelva a estar sincronizada. Tras la promoción, las compras nuevas solo están en el servidor promovido hasta reconstruir una réplica.
-
-El antiguo principal no vuelve automáticamente al servicio. Debe reconstruirse como réplica del servidor promovido con un procedimiento administrativo que preserve los datos; no borre volúmenes ni retire la marca de coordinación para forzar su arranque. Esta demostración depende de Docker, el almacenamiento compartido y el equipo local: no protege ante la falla de ese equipo y no reemplaza una solución de alta disponibilidad entre máquinas con un coordinador independiente. Replicación tampoco sustituye copias de seguridad independientes.
