@@ -1,0 +1,2 @@
+# Los scripts ejecutados en contenedores Linux siempre usan LF.
+*.sh text eol=lf

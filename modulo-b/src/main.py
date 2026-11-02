@@ -5,7 +5,8 @@ import logging
 import os
 import fcntl
 import threading
-from typing import Annotated, Generator
+from time import monotonic, sleep
+from typing import Annotated, Generator, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, FastAPI, HTTPException, Path, Query, status
@@ -28,6 +29,9 @@ DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_NAME = os.getenv("DB_NAME", "negocio_db")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres123")
+REPLICATION_WAIT_SECONDS = float(os.getenv("REPLICATION_WAIT_SECONDS", "2"))
+if not 0 <= REPLICATION_WAIT_SECONDS <= 10:
+    raise ValueError("REPLICATION_WAIT_SECONDS debe estar entre 0 y 10.")
 
 _failover_lock = threading.Lock()
 _fence_file = None
@@ -37,11 +41,44 @@ def connect(host: str) -> psycopg2.extensions.connection:
     conn = psycopg2.connect(
         host=host, port=DB_PORT, dbname=DB_NAME, user=DB_USER,
         password=DB_PASSWORD, connect_timeout=3,
+        options="-c synchronous_commit=local -c statement_timeout=5000 -c lock_timeout=3000",
+        keepalives_idle=3, keepalives_interval=1, keepalives_count=3,
+        tcp_user_timeout=5000,
     )
-    with conn.cursor() as cursor:
-        cursor.execute("SET synchronous_commit = remote_apply")
-    conn.commit()
     return conn
+
+
+def replication_confirmed(conn: psycopg2.extensions.connection) -> bool:
+    """Espera acotada tras COMMIT local, sin bloquear por una réplica apagada.
+
+    Una respuesta pendiente conserva la compra en el servidor activo. PostgreSQL
+    enviará el WAL pendiente cuando la réplica vuelva a conectarse.
+    """
+    deadline = monotonic() + REPLICATION_WAIT_SECONDS
+    try:
+        conn.autocommit = True  # Cada consulta observa el progreso actual del WAL.
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT pg_current_wal_flush_lsn()::text")
+            target_lsn = cursor.fetchone()[0]
+            while True:
+                cursor.execute(
+                    """SELECT replay_lsn >= %s::pg_lsn
+                       FROM pg_stat_replication
+                       WHERE application_name IN ('standby_b', 'original_b')
+                         AND state = 'streaming'""",
+                    (target_lsn,),
+                )
+                replicas = cursor.fetchall()
+                if any(row[0] is True for row in replicas):
+                    return True
+                if not replicas or monotonic() >= deadline:
+                    return False
+                sleep(min(0.05, max(0, deadline - monotonic())))
+    except psycopg2.Error:
+        # El COMMIT ya terminó: un fallo de verificación no rechaza la compra
+        # ni debe provocar que el cliente la repita y genere otra transacción.
+        logger.warning("Compra guardada; no se pudo confirmar su replicación.", exc_info=True)
+        return False
 
 
 def active_connection() -> psycopg2.extensions.connection:
@@ -153,6 +190,12 @@ class TransaccionResponse(TransaccionCreate):
     fecha: datetime = Field(description="Fecha y hora UTC de recepción")
 
 
+class TransaccionRegistradaResponse(TransaccionResponse):
+    replicacion: Literal["confirmada", "pendiente"] = Field(
+        description="Confirmada en la réplica o pendiente de sincronización; la compra ya está guardada en el servidor activo."
+    )
+
+
 # Instancia de FastAPI
 app = FastAPI(
     title="Módulo B - Servicio de Dominio",
@@ -173,25 +216,30 @@ router = APIRouter(tags=["Transacciones"])
 def health_check() -> dict[str, str]:
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT 1;")
-            cursor.fetchone()
-    return {"status": "ok", "servicio": "modulo-b", "db": "PostgreSQL conectado"}
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM pg_stat_replication WHERE state = 'streaming');")
+            replica_connected = cursor.fetchone()[0]
+        host = conn.info.host
+    return {
+        "status": "ok", "servicio": "modulo-b", "db": "PostgreSQL conectado",
+        "servidor_activo": host,
+        "modo": "normal" if replica_connected else "degradado",
+    }
 
 
 @router.post(
     "/transacciones",
-    response_model=TransaccionResponse,
+    response_model=TransaccionRegistradaResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Registrar nueva transacción",
     description="Recibe una transacción desde el API Gateway (Módulo A) y la persiste en la base de datos relacional PostgreSQL con estado RECIBIDO.",
 )
 @router.post(
     "/api/transacciones",
-    response_model=TransaccionResponse,
+    response_model=TransaccionRegistradaResponse,
     status_code=status.HTTP_201_CREATED,
     include_in_schema=False,
 )
-def create_transaction(transaction: TransaccionCreate) -> TransaccionResponse:
+def create_transaction(transaction: TransaccionCreate) -> TransaccionRegistradaResponse:
     tx_id = uuid4()
     created_at = datetime.now(timezone.utc)
 
@@ -231,6 +279,7 @@ def create_transaction(transaction: TransaccionCreate) -> TransaccionResponse:
             )
             row = cursor.fetchone()
             conn.commit()
+        replicated = replication_confirmed(conn)
 
     if row is None:
         raise HTTPException(
@@ -240,7 +289,10 @@ def create_transaction(transaction: TransaccionCreate) -> TransaccionResponse:
 
     logger.info("Transacción persistida con éxito en PostgreSQL. ID: %s (Estado: %s)", row[0], row[6])
 
-    return TransaccionResponse(
+    if not replicated:
+        logger.warning("Transacción %s guardada en modo degradado; replicación pendiente.", tx_id)
+
+    return TransaccionRegistradaResponse(
         id=row[0],
         cuenta_origen=row[1],
         cuenta_destino=row[2],
@@ -249,6 +301,7 @@ def create_transaction(transaction: TransaccionCreate) -> TransaccionResponse:
         descripcion=row[5],
         estado=row[6],
         fecha=row[7],
+        replicacion="confirmada" if replicated else "pendiente",
     )
 
 

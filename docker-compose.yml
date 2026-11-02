@@ -25,9 +25,10 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./modulo-b/postgres/primary.sh:/primary.sh:ro
+      - ./modulo-b/postgres/rejoin.sh:/rejoin.sh:ro
       - ./modulo-b/postgres/pg_hba.conf:/replication-pg_hba.conf:ro
       - pg_coord:/coord
-    entrypoint: ["/bin/sh", "/primary.sh"]
+    entrypoint: [ "/bin/sh", "/primary.sh" ]
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres -d negocio_db" ]
       interval: 5s
@@ -45,9 +46,10 @@ services:
     volumes:
       - pgdata_2:/var/lib/postgresql/data
       - ./modulo-b/postgres/standby.sh:/standby.sh:ro
-    entrypoint: ["/bin/sh", "/standby.sh"]
+      - ./modulo-b/postgres/pg_hba.conf:/replication-pg_hba.conf:ro
+    entrypoint: [ "/bin/sh", "/standby.sh" ]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d negocio_db"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d negocio_db" ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -81,7 +83,6 @@ services:
   modulo-c:
     build: ./modulo-c
     container_name: modulo-c
-    env_file:
-      - ./modulo-c/.env
+    env_file: ./.env
     networks:
       - red_interna
