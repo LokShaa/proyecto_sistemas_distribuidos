@@ -206,6 +206,52 @@ app = FastAPI(
 
 router = APIRouter(tags=["Transacciones"])
 
+def obtener_estado_bd(host: str) -> dict[str, object]:
+    """Consulta directamente un contenedor PostgreSQL (primario o backup) para ver qué transacciones tiene."""
+    try:
+        with connect(host) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT pg_is_in_recovery();")
+                en_recuperacion = bool(cursor.fetchone()[0])
+                cursor.execute(
+                    """
+                    SELECT id, cuenta_origen, cuenta_destino, monto, moneda,
+                           descripcion, estado, fecha
+                    FROM transacciones
+                    ORDER BY fecha DESC
+                    LIMIT 20;
+                    """
+                )
+                rows = cursor.fetchall()
+        return {
+            "host": host,
+            "online": True,
+            "rol": "RESPALDO (Standby)" if en_recuperacion else "PRIMARIA (Activa)",
+            "cantidad": len(rows),
+            "transacciones": [
+                {
+                    "id": str(r[0]),
+                    "cuenta_origen": r[1],
+                    "cuenta_destino": r[2],
+                    "monto": float(r[3]),
+                    "moneda": r[4],
+                    "descripcion": r[5],
+                    "estado": r[6],
+                    "fecha": r[7].isoformat() if r[7] else None,
+                }
+                for r in rows
+            ],
+        }
+    except Exception as err:
+        return {
+            "host": host,
+            "online": False,
+            "rol": "CAÍDA / SIN CONEXIÓN",
+            "error": str(err),
+            "cantidad": 0,
+            "transacciones": [],
+        }
+
 
 @router.get(
     "/health",
@@ -223,6 +269,27 @@ def health_check() -> dict[str, str]:
         "status": "ok", "servicio": "modulo-b", "db": "PostgreSQL conectado",
         "servidor_activo": host,
         "modo": "normal" if replica_connected else "degradado",
+    }
+
+
+@router.get(
+    "/transacciones-bds",
+    summary="Comparar contenido de BD 1 (Normal) y BD Backup",
+    description="Devuelve las transacciones almacenadas en bd-relacional y en bd-relacional-backup para verificar su sincronización.",
+)
+def get_databases_comparison() -> dict[str, object]:
+    bd_1 = obtener_estado_bd(DB_HOST)
+    bd_backup = obtener_estado_bd(DB_BACKUP_HOST)
+    ids_1 = [tx["id"] for tx in bd_1["transacciones"]]
+    ids_backup = [tx["id"] for tx in bd_backup["transacciones"]]
+    set_backup = set(ids_backup)
+    ids_en_ambas = [tx_id for tx_id in ids_1 if tx_id in set_backup]
+    sincronizadas = bool(bd_1["online"] and bd_backup["online"] and set(ids_1) == set_backup)
+    return {
+        "sincronizadas": sincronizadas,
+        "ids_en_ambas": ids_en_ambas,
+        "bd_1": bd_1,
+        "bd_backup": bd_backup,
     }
 
 

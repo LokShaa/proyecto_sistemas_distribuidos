@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,55 +15,283 @@
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding: 1.5rem; }
-    .container { max-width: 1050px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
-    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
-    h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
-    .badge-status { background: rgba(16, 185, 129, 0.15); color: var(--success); padding: 0.3rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
-    .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.5rem; }
-    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
-    h2 { font-size: 1.1rem; margin-bottom: 1rem; color: #e2e8f0; }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.5rem;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .badge-status {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      padding: 0.3rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 1.5rem;
+    }
+
+    .grid-db {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 768px) {
+
+      .grid,
+      .grid-db {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .subcard {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: #e2e8f0;
+    }
 
     /* Catálogo de Zapatillas */
-    .catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
-    .product-card { background: #0b1120; border: 2px solid var(--border); border-radius: 8px; padding: 0.75rem; cursor: pointer; text-align: center; transition: all 0.2s; }
-    .product-card:hover { border-color: var(--accent); }
-    .product-card.selected { border-color: var(--accent); background: rgba(37, 99, 235, 0.1); }
-    .product-icon { font-size: 2rem; margin-bottom: 0.25rem; }
-    .product-title { font-size: 0.85rem; font-weight: 600; }
-    .product-price { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .catalog {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .product-card {
+      background: #0b1120;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .product-card:hover {
+      border-color: var(--accent);
+    }
+
+    .product-card.selected {
+      border-color: var(--accent);
+      background: rgba(37, 99, 235, 0.1);
+    }
+
+    .product-icon {
+      font-size: 2rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .product-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .product-price {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
 
     /* Formulario de Checkout */
-    .form-group { margin-bottom: 0.75rem; }
-    label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.25rem; }
-    input, select { width: 100%; padding: 0.55rem; border-radius: 6px; border: 1px solid var(--border); background: #0b1120; color: var(--text); font-size: 0.85rem; }
-    input:focus, select:focus { outline: 2px solid var(--accent); }
-    button.btn-buy { width: 100%; padding: 0.75rem; background: var(--accent); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; }
-    button.btn-buy:hover { background: var(--accent-hover); }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-group {
+      margin-bottom: 0.75rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #0b1120;
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    input:focus,
+    select:focus {
+      outline: 2px solid var(--accent);
+    }
+
+    button.btn-buy {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 0.5rem;
+    }
+
+    button.btn-buy:hover {
+      background: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-refresh {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .btn-refresh:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
 
     /* Consola y Tabla */
-    pre { background: #0b1120; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; color: #38bdf8; font-family: monospace; font-size: 0.8rem; overflow-x: auto; min-height: 160px; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 0.5rem; }
-    th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); }
-    th { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; }
+    pre {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      min-height: 160px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 0.5rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+    }
+
+    .db-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pill {
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .pill-ok {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+    }
+
+    .pill-err {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+    }
+
+    .pill-warn {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
       <div>
         <h1>SneakerStore - Checkout Directo</h1>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">Venta procesada mediante arquitectura distribuida (Fastify &rarr; FastAPI &rarr; Go)</p>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">Venta procesada mediante arquitectura
+          distribuida (Fastify &rarr; FastAPI &rarr; Go)</p>
       </div>
       <span class="badge-status">Sistema Online</span>
     </header>
 
     <div class="grid">
-      <!-- Selección y Datos del Cliente -->
+
       <div class="card">
         <h2>1. Selecciona tu Zapatilla</h2>
         <div class="catalog">
@@ -113,18 +342,16 @@
         </form>
       </div>
 
-      <!-- Consola de Respuesta del Gateway -->
       <div class="card">
         <h2>Detalle de la Transacción (Gateway)</h2>
         <pre id="responseLog">// Selecciona un calzado y confirma tu compra para ver la persistencia...</pre>
       </div>
     </div>
 
-    <!-- Trazas de Auditoría en MongoDB -->
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
         <h2>Auditoría de Compras en MongoDB Atlas (Módulo C)</h2>
-        <button id="btnRefresh" style="background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer;">Refrescar</button>
+        <button id="btnRefresh" class="btn-refresh">Refrescar</button>
       </div>
       <table>
         <thead>
@@ -137,9 +364,80 @@
           </tr>
         </thead>
         <tbody id="auditTableBody">
-          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Sin compras registradas</td></tr>
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted);">Sin compras registradas</td>
+          </tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+        <div>
+          <h2 style="margin-bottom: 0.2rem;">Estado de Bases de Datos PostgreSQL</h2>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">Comparación en vivo de los IDs almacenados en
+            <code>bd-relacional</code> y su réplica <code>bd-relacional-backup</code>
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <span id="syncGlobalBadge" class="pill pill-warn">Verificando...</span>
+          <button id="btnRefreshDBs" class="btn-refresh">Refrescar BDs</button>
+        </div>
+      </div>
+
+      <div class="grid-db">
+        <div class="subcard">
+          <div class="db-header">
+            <div>
+              <strong style="font-size: 0.9rem;">BD 1: Normal (<code>bd-relacional</code>)</strong>
+              <div id="db1Role" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Consultando
+                rol...</div>
+            </div>
+            <span id="db1Status" class="pill pill-warn">...</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Tx ID</th>
+                <th>Cuenta &rarr; Destino</th>
+                <th>Monto</th>
+                <th>En Ambas</th>
+              </tr>
+            </thead>
+            <tbody id="db1TableBody">
+              <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted);">Cargando...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="subcard">
+          <div class="db-header">
+            <div>
+              <strong style="font-size: 0.9rem;">BD 2: Respaldo</strong>
+              <div id="dbBackupRole" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Consultando
+                rol...</div>
+            </div>
+            <span id="dbBackupStatus" class="pill pill-warn">...</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Tx ID</th>
+                <th>Cuenta &rarr; Destino</th>
+                <th>Monto</th>
+                <th>En Ambas</th>
+              </tr>
+            </thead>
+            <tbody id="dbBackupTableBody">
+              <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted);">Cargando...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -158,6 +456,7 @@
     const log = document.getElementById('responseLog');
     const btnSubmit = document.getElementById('btnSubmit');
     const btnRefresh = document.getElementById('btnRefresh');
+    const btnRefreshDBs = document.getElementById('btnRefreshDBs');
     const tbody = document.getElementById('auditTableBody');
 
     async function loadAudits() {
@@ -208,6 +507,75 @@
       }
     }
 
+    function renderDBTable(dbInfo, idsEnAmbasSet, statusEl, roleEl, tableBodyEl) {
+      if (!dbInfo || !dbInfo.online) {
+        statusEl.className = 'pill pill-err';
+        statusEl.textContent = 'CAÍDA';
+        roleEl.textContent = dbInfo?.rol || 'Sin conexión al contenedor';
+        tableBodyEl.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--danger);">Contenedor desconectado o apagado</td></tr>';
+        return;
+      }
+
+      const txs = Array.isArray(dbInfo.transacciones) ? dbInfo.transacciones : [];
+      statusEl.className = 'pill pill-ok';
+      statusEl.textContent = `ONLINE (${txs.length})`;
+      roleEl.textContent = `Rol actual: ${dbInfo.rol}`;
+
+      if (txs.length === 0) {
+        tableBodyEl.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Sin transacciones registradas</td></tr>';
+        return;
+      }
+
+      tableBodyEl.innerHTML = txs.map(tx => {
+        const enAmbas = idsEnAmbasSet.has(tx.id);
+        const badgeSync = enAmbas
+          ? '<span style="color: var(--success); font-weight: 600;">✔ Sí (En ambas)</span>'
+          : '<span style="color: var(--warning); font-weight: 600;">⚠ Solo aquí</span>';
+        const montoFmt = `$${Number(tx.monto).toLocaleString('es-CL')} ${tx.moneda || ''}`;
+        return `
+          <tr>
+            <td style="font-family: monospace; font-size: 0.72rem;" title="${tx.id}">${tx.id}</td>
+            <td style="font-size: 0.75rem;">${tx.cuenta_origen} &rarr; ${tx.cuenta_destino}</td>
+            <td style="font-size: 0.75rem;">${montoFmt}</td>
+            <td style="font-size: 0.72rem;">${badgeSync}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function loadDatabasesComparison() {
+      const syncBadge = document.getElementById('syncGlobalBadge');
+      const db1Status = document.getElementById('db1Status');
+      const db1Role = document.getElementById('db1Role');
+      const db1Body = document.getElementById('db1TableBody');
+      const dbBackupStatus = document.getElementById('dbBackupStatus');
+      const dbBackupRole = document.getElementById('dbBackupRole');
+      const dbBackupBody = document.getElementById('dbBackupTableBody');
+
+      try {
+        const res = await fetch('/api/transacciones-bds');
+        const data = await res.json();
+        const idsSet = new Set(data.ids_en_ambas || []);
+
+        if (data.sincronizadas) {
+          syncBadge.className = 'pill pill-ok';
+        } else if (data.bd_1?.online && data.bd_backup?.online) {
+          syncBadge.className = 'pill pill-warn';
+          syncBadge.textContent = 'Diferencia detectada';
+        } else {
+          syncBadge.className = 'pill pill-err';
+          syncBadge.textContent = 'BD CAIDA';
+        }
+
+        renderDBTable(data.bd_1, idsSet, db1Status, db1Role, db1Body);
+        renderDBTable(data.bd_backup, idsSet, dbBackupStatus, dbBackupRole, dbBackupBody);
+      } catch (err) {
+        console.error("Error al comparar BDs:", err);
+        syncBadge.className = 'pill pill-err';
+        syncBadge.textContent = 'Error consultando Módulo B';
+      }
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       btnSubmit.disabled = true;
@@ -232,7 +600,7 @@
 
         const json = await res.json();
         log.textContent = JSON.stringify(json, null, 2);
-        await loadAudits();
+        await Promise.all([loadAudits(), loadDatabasesComparison()]);
       } catch (err) {
         log.textContent = 'Error: ' + err.message;
       } finally {
@@ -242,7 +610,10 @@
     });
 
     btnRefresh.addEventListener('click', loadAudits);
+    btnRefreshDBs.addEventListener('click', loadDatabasesComparison);
     loadAudits();
+    loadDatabasesComparison();
   </script>
 </body>
+
 </html>

@@ -143,6 +143,24 @@ fastify.get('/api/auditorias', async (req, reply) => {
   }
 });
 
+// Endpoint de apoyo para que la interfaz compare BD 1 (bd-relacional) y BD Backup (bd-relacional-backup)
+fastify.get('/api/transacciones-bds', async (req, reply) => {
+  try {
+    const { statusCode, body } = await request(`${MODULO_B_URL}/transacciones-bds`, {
+      method: 'GET'
+    });
+    const data = await body.json();
+    return reply.status(statusCode).send(data);
+  } catch (err) {
+    return reply.status(503).send({
+      sincronizadas: false,
+      ids_en_ambas: [],
+      bd_1: { host: 'bd-relacional', online: false, rol: 'MÓDULO B SIN CONEXIÓN', cantidad: 0, transacciones: [] },
+      bd_backup: { host: 'bd-relacional-backup', online: false, rol: 'MÓDULO B SIN CONEXIÓN', cantidad: 0, transacciones: [] }
+    });
+  }
+});
+
 const start = async () => {
   try {
     await fastify.listen({ port: 8080, host: '0.0.0.0' });

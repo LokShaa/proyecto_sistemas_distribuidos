@@ -83,6 +83,6 @@ services:
   modulo-c:
     build: ./modulo-c
     container_name: modulo-c
-    env_file: ./.env
+    env_file: ./modulo-c/.env
     networks:
       - red_interna
