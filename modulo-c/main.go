@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -40,6 +41,8 @@ type AuditoriaPayload struct {
 	Descripcion   string `json:"descripcion,omitempty"`
 	Estado        string `json:"estado,omitempty"`        // NUEVO: estado del evento (ej. EXITOSA, FALLIDA, CAIDA_B)
 	DetalleError  string `json:"detalle_error,omitempty"` // NUEVO: motivo si hubo fallo
+	NodoGateway   string `json:"nodo_gateway,omitempty"`
+	NodoDominio   string `json:"nodo_dominio,omitempty"`
 }
 
 // RegistroAuditoria es el documento que se persiste en MongoDB.
@@ -55,9 +58,13 @@ type RegistroAuditoria struct {
 	Descripcion      string    `bson:"descripcion,omitempty"`
 	Estado           string    `bson:"estado"`                  // Ahora guarda el estado real de lo que pasó
 	DetalleError     string    `bson:"detalle_error,omitempty"` // NUEVO: guarda el error de B, red o JSON
+	NodoGateway     string    `bson:"nodo_gateway,omitempty" json:"nodo_gateway,omitempty"`
+	NodoDominio     string    `bson:"nodo_dominio,omitempty" json:"nodo_dominio,omitempty"`
+	NodoAuditoria   string    `bson:"nodo_auditoria,omitempty" json:"nodo_auditoria,omitempty"`
 }
 
 var mongoClient *mongo.Client
+var nodeID, _ = os.Hostname()
 
 func conectarMongoDB() {
 	log.Printf("[MODULO-C] Conectando a MongoDB Atlas...")
@@ -161,6 +168,7 @@ func handlerAuditoria(w http.ResponseWriter, r *http.Request) {
 			Descripcion:      string(rawBody),
 			Estado:           "ERROR_JSON_INVALIDO",
 			DetalleError:     err.Error(),
+			NodoAuditoria:    nodeID,
 		})
 		responderJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "JSON inválido: " + err.Error(),
@@ -185,6 +193,9 @@ func handlerAuditoria(w http.ResponseWriter, r *http.Request) {
 		Descripcion:      limpiarTexto(payload.Descripcion, "Sin descripción"),
 		Estado:           limpiarTexto(payload.Estado, "AUDITADO"),
 		DetalleError:     payload.DetalleError,
+		NodoGateway:      payload.NodoGateway,
+		NodoDominio:      payload.NodoDominio,
+		NodoAuditoria:    nodeID,
 	}
 
 	// Persistir en MongoDB Atlas
@@ -227,6 +238,42 @@ func handlerHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func handlerMonitor(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	var hello struct {
+		SetName          string             `bson:"setName"`
+		Primary          string             `bson:"primary"`
+		Hosts            []string           `bson:"hosts"`
+		Passives         []string           `bson:"passives"`
+		Arbiters         []string           `bson:"arbiters"`
+		ElectionID       primitive.ObjectID `bson:"electionId"`
+		Message          string             `bson:"msg"`
+		WritablePrimary  bool               `bson:"isWritablePrimary"`
+	}
+	err := mongoClient.Database("admin").RunCommand(ctx, bson.D{{Key: "hello", Value: 1}}).Decode(&hello)
+	if err != nil {
+		responderJSON(w, http.StatusOK, map[string]any{"online": false})
+		return
+	}
+	tipo := "Instancia única"
+	switch {
+	case hello.Message == "isdbgrid":
+		tipo = "Clúster fragmentado"
+	case hello.SetName != "":
+		tipo = "Replica set"
+	}
+	election := ""
+	if !hello.ElectionID.IsZero() {
+		election = hello.ElectionID.Hex()
+	}
+	responderJSON(w, http.StatusOK, map[string]any{
+		"online": true, "tipo": tipo, "set": hello.SetName, "primario": hello.Primary,
+		"miembros": append(append(hello.Hosts, hello.Passives...), hello.Arbiters...),
+		"eleccion": election, "escribible": hello.WritablePrimary,
+	})
+}
+
 // Devuelve las últimas 20 auditorías guardadas
 func handlerListar(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -252,7 +299,7 @@ func handlerListar(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cursor.Close(ctx)
 
-	var registros []RegistroAuditoria
+	registros := make([]RegistroAuditoria, 0)
 	if err := cursor.All(ctx, &registros); err != nil {
 		responderJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": "error decodificando documentos",
@@ -274,13 +321,17 @@ func main() {
 	mux.HandleFunc("/auditoria", handlerAuditoria) // POST - recibe desde Módulo A
 	mux.HandleFunc("/auditorias", handlerListar)   // GET  - lista las últimas trazas
 	mux.HandleFunc("/health", handlerHealth)       // GET  - healthcheck
+	mux.HandleFunc("/monitor", handlerMonitor)
 
 	addr := "0.0.0.0:" + serverPort
 	log.Printf("[MODULO-C] Escuchando en http://%s", addr)
 
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Node-Id", nodeID)
+			mux.ServeHTTP(w, r)
+		}),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}

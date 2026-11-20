@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SneakerStore - Estado en tiempo real</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/monitor.js" defer></script>
+</head>
+<body>
+  <main class="container" data-view="estado">
+    <header class="monitor-heading">
+      <div>
+        <h1>SneakerStore - Estado en tiempo real</h1>
+        <p class="monitor-copy">Historial persistido en PostgreSQL y trazas registradas en MongoDB.</p>
+      </div>
+      <span class="badge-status">Cada 5 s</span>
+    </header>
+    <nav class="view-nav" aria-label="Vistas del sistema">
+      <a href="/">Operación de transacciones</a>
+      <a href="/estado.html" aria-current="page">Estado en tiempo real</a>
+      <a href="/salud.html">Monitor de salud</a>
+    </nav>
+
+    <div class="monitor-toolbar">
+      <p class="monitor-copy" id="refresh-status" role="status">Consultando el sistema…</p>
+      <button type="button" class="btn-refresh" id="refresh">Actualizar ahora</button>
+    </div>
+
+    <section class="card" aria-labelledby="tx-heading">
+      <div class="panel-heading">
+        <div>
+          <h2 id="tx-heading">Transacciones persistidas</h2>
+          <p class="monitor-copy" id="tx-status">Consultando las dos bases PostgreSQL…</p>
+        </div>
+      </div>
+      <div class="table-scroll" tabindex="0" role="region" aria-labelledby="tx-heading">
+        <table>
+          <thead><tr>
+            <th scope="col">Fecha</th><th scope="col">ID</th><th scope="col">Origen / Destino</th>
+            <th scope="col">Monto</th><th scope="col">Estado</th><th scope="col">Nodo B</th>
+            <th scope="col">Copia observada</th>
+          </tr></thead>
+          <tbody id="transactions"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="audit-heading">
+      <h2 id="audit-heading">Trazas de auditoría</h2>
+      <p class="monitor-copy" id="audit-status">Consultando MongoDB…</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-labelledby="audit-heading">
+        <table>
+          <thead><tr>
+            <th scope="col">Fecha</th><th scope="col">Transacción</th><th scope="col">Operación</th><th scope="col">Resultado</th>
+            <th scope="col">Instancias A / B / C</th><th scope="col">SHA-256</th>
+          </tr></thead>
+          <tbody id="audits"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

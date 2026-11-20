@@ -1,8 +1,9 @@
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, closing, contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal
 import logging
 import os
+import socket
 import fcntl
 import threading
 from time import monotonic, sleep
@@ -29,6 +30,7 @@ DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_NAME = os.getenv("DB_NAME", "negocio_db")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres123")
+NODE_ID = socket.gethostname()
 REPLICATION_WAIT_SECONDS = float(os.getenv("REPLICATION_WAIT_SECONDS", "2"))
 if not 0 <= REPLICATION_WAIT_SECONDS <= 10:
     raise ValueError("REPLICATION_WAIT_SECONDS debe estar entre 0 y 10.")
@@ -206,19 +208,66 @@ app = FastAPI(
 
 router = APIRouter(tags=["Transacciones"])
 
+@app.middleware("http")
+async def identificar_nodo(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Node-Id"] = NODE_ID
+    return response
+
+
+def sondear_postgres(host: str) -> dict[str, object]:
+    try:
+        with closing(connect(host)) as conn, conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT pg_is_in_recovery(),
+                       CASE WHEN pg_is_in_recovery() THEN
+                           EXISTS (SELECT 1 FROM pg_stat_wal_receiver WHERE status = 'streaming')
+                       ELSE
+                           EXISTS (SELECT 1 FROM pg_stat_replication WHERE state = 'streaming')
+                       END
+            """)
+            recovery, streaming = cursor.fetchone()
+        return {"host": host, "online": True, "rol": "replica" if recovery else "primario",
+                "replicando": streaming}
+    except psycopg2.Error:
+        return {"host": host, "online": False}
+
+
+@router.get("/monitor", tags=["Salud"])
+def monitor_postgres() -> dict[str, object]:
+    nodos = [sondear_postgres(host) for host in dict.fromkeys([DB_HOST, DB_BACKUP_HOST])]
+    try:
+        marca = os.stat(os.path.join(DB_COORD_DIR, "promoted"))
+    except FileNotFoundError:
+        marca = None
+    activo = DB_BACKUP_HOST if marca else DB_HOST
+    primario = next(
+        (nodo for nodo in nodos if nodo["host"] == activo and nodo.get("rol") == "primario"),
+        None,
+    )
+    return {
+        "nodos": nodos,
+        "primario": activo if primario else None,
+        "modo": ("normal" if primario["replicando"] else "degradado") if primario else "sin_primario",
+        "failover": {
+            "id": str(marca.st_mtime_ns), "desde": DB_HOST, "hacia": DB_BACKUP_HOST,
+        } if marca and primario else None,
+    }
+
+
 def obtener_estado_bd(host: str) -> dict[str, object]:
     """Consulta directamente un contenedor PostgreSQL (primario o backup) para ver qué transacciones tiene."""
     try:
-        with connect(host) as conn:
+        with closing(connect(host)) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT pg_is_in_recovery();")
                 en_recuperacion = bool(cursor.fetchone()[0])
                 cursor.execute(
                     """
                     SELECT id, cuenta_origen, cuenta_destino, monto, moneda,
-                           descripcion, estado, fecha
-                    FROM transacciones
-                    ORDER BY fecha DESC
+                           descripcion, estado, fecha, to_jsonb(t)->>'nodo'
+                    FROM transacciones AS t
+                    ORDER BY fecha DESC, id DESC
                     LIMIT 20;
                     """
                 )
@@ -237,7 +286,8 @@ def obtener_estado_bd(host: str) -> dict[str, object]:
                     "moneda": r[4],
                     "descripcion": r[5],
                     "estado": r[6],
-                    "fecha": r[7].isoformat() if r[7] else None,
+                    "fecha": r[7].replace(tzinfo=timezone.utc).isoformat() if r[7] else None,
+                    "nodo": r[8],
                 }
                 for r in rows
             ],
@@ -322,28 +372,27 @@ def create_transaction(transaction: TransaccionCreate) -> TransaccionRegistradaR
     query = """
         INSERT INTO transacciones (
             id, cuenta_origen, cuenta_destino, monto, moneda,
-            descripcion, estado, fecha
+            descripcion, estado, fecha, nodo
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id, cuenta_origen, cuenta_destino, monto, moneda,
                   descripcion, estado, fecha;
     """
 
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            cursor.execute(
-                query,
-                (
-                    str(tx_id),
-                    transaction.cuenta_origen,
-                    transaction.cuenta_destino,
-                    transaction.monto,
-                    transaction.moneda,
-                    transaction.descripcion,
-                    "RECIBIDO",
-                    created_at,
-                ),
+            values = (
+                str(tx_id), transaction.cuenta_origen, transaction.cuenta_destino,
+                transaction.monto, transaction.moneda, transaction.descripcion,
+                "RECIBIDO", created_at, NODE_ID,
             )
+            try:
+                cursor.execute(query, values)
+            except psycopg2.errors.UndefinedColumn:
+                # Actualiza volúmenes inicializados con el esquema anterior.
+                conn.rollback()
+                cursor.execute("ALTER TABLE transacciones ADD COLUMN IF NOT EXISTS nodo TEXT")
+                cursor.execute(query, values)
             row = cursor.fetchone()
             conn.commit()
         replicated = replication_confirmed(conn)

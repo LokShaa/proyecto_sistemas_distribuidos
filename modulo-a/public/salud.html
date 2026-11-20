@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SneakerStore - Monitor de salud</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/monitor.js" defer></script>
+</head>
+<body>
+  <main class="container" data-view="salud">
+    <header class="monitor-heading">
+      <div>
+        <h1>SneakerStore - Monitor de salud</h1>
+        <p class="monitor-copy">Disponibilidad de servicios, replicación y conmutación por error.</p>
+      </div>
+      <span class="badge-status">Cada 5 s</span>
+    </header>
+    <nav class="view-nav" aria-label="Vistas del sistema">
+      <a href="/">Operación de transacciones</a>
+      <a href="/estado.html">Estado en tiempo real</a>
+      <a href="/salud.html" aria-current="page">Monitor de salud</a>
+    </nav>
+
+    <div class="monitor-toolbar">
+      <p class="monitor-copy" id="refresh-status" role="status">Consultando el sistema…</p>
+      <button type="button" class="btn-refresh" id="refresh">Actualizar ahora</button>
+    </div>
+
+    <section class="card" aria-labelledby="services-heading">
+      <h2 id="services-heading">Nodos de aplicación</h2>
+      <div class="service-grid" id="services"></div>
+    </section>
+
+    <section class="card" aria-labelledby="clusters-heading">
+      <h2 id="clusters-heading">Clústeres de bases de datos</h2>
+      <div class="grid-db">
+        <article class="subcard">
+          <h3 class="monitor-status">PostgreSQL <span class="pill pill-warn" id="postgres-state">Consultando</span></h3>
+          <p class="monitor-copy" id="postgres-summary"></p>
+          <ul class="monitor-list" id="postgres-nodes"></ul>
+        </article>
+        <article class="subcard">
+          <h3 class="monitor-status">MongoDB Atlas <span class="pill pill-warn" id="mongo-state">Consultando</span></h3>
+          <p class="monitor-copy" id="mongo-summary"></p>
+          <ul class="monitor-list" id="mongo-nodes"></ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="events-heading">
+      <h2 id="events-heading">Eventos de failover</h2>
+      <p class="monitor-copy" id="event-status">Esperando la primera lectura.</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-labelledby="events-heading">
+        <table class="events-table">
+          <thead><tr>
+            <th scope="col">Detección</th><th scope="col">Motor</th>
+            <th scope="col">Primario anterior</th><th scope="col">Primario observado</th>
+          </tr></thead>
+          <tbody id="events"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

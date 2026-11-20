@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS transacciones (
     moneda VARCHAR(10) NOT NULL,
     descripcion VARCHAR(255),
     estado VARCHAR(20) NOT NULL DEFAULT 'RECIBIDO',
-    fecha TIMESTAMP NOT NULL
+    fecha TIMESTAMP NOT NULL,
+    nodo TEXT
 );

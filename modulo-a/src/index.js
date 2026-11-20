@@ -1,4 +1,5 @@
 const path = require('path');
+const { hostname } = require('os');
 const fastify = require('fastify')({ logger: true });
 const fastifyStatic = require('@fastify/static');
 const { request } = require('undici');
@@ -6,6 +7,11 @@ const { request } = require('undici');
 // Variables de entorno definidas en docker-compose
 const MODULO_B_URL = process.env.MODULO_B_URL || 'http://modulo-b:5000';
 const MODULO_C_URL = process.env.MODULO_C_URL || 'http://modulo-c:6000';
+const NODE_ID = hostname();
+
+fastify.addHook('onRequest', async (_req, reply) => {
+  reply.header('X-Node-Id', NODE_ID);
+});
 
 // Servir la interfaz gráfica estática desde public/
 fastify.register(fastifyStatic, {
@@ -19,11 +25,12 @@ async function registrarAuditoria(payloadAuditoria) {
     const { statusCode, body } = await request(`${MODULO_C_URL}/auditoria`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payloadAuditoria)
+      body: JSON.stringify({ ...payloadAuditoria, nodo_gateway: NODE_ID })
     });
     if (statusCode === 201) {
       return await body.json();
     }
+    await body.dump();
   } catch (auditErr) {
     fastify.log.warn('Aviso: fallo al registrar en auditoría: ' + auditErr.message);
   }
@@ -59,7 +66,7 @@ fastify.post('/api/transacciones', async (req, reply) => {
 
   try {
     // 1. Llamada interna a Módulo B (allí se hacen las validaciones y persistencia)
-    const { statusCode: statusB, body: bodyB } = await request(`${MODULO_B_URL}/transacciones`, {
+    const { statusCode: statusB, body: bodyB, headers: headersB } = await request(`${MODULO_B_URL}/transacciones`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ cuenta_origen, cuenta_destino, monto, moneda, descripcion })
@@ -84,6 +91,7 @@ fastify.post('/api/transacciones', async (req, reply) => {
     // 3. Mandar a Módulo C lo que ocurrió en B (éxito o fallo)
     const auditData = await registrarAuditoria({
       transaccion_id: String(transactionId),
+      nodo_dominio: headersB['x-node-id'] || '',
       cuenta_origen: origenLimpio,
       cuenta_destino: destinoLimpio,
       monto: montoLimpio,
@@ -134,7 +142,7 @@ fastify.post('/api/transacciones', async (req, reply) => {
 fastify.get('/api/auditorias', async (req, reply) => {
   try {
     const { statusCode, body } = await request(`${MODULO_C_URL}/auditorias`, {
-      method: 'GET'
+      signal: AbortSignal.timeout(8000)
     });
     const data = await body.json();
     return reply.status(statusCode).send(data);
@@ -147,7 +155,7 @@ fastify.get('/api/auditorias', async (req, reply) => {
 fastify.get('/api/transacciones-bds', async (req, reply) => {
   try {
     const { statusCode, body } = await request(`${MODULO_B_URL}/transacciones-bds`, {
-      method: 'GET'
+      signal: AbortSignal.timeout(12000)
     });
     const data = await body.json();
     return reply.status(statusCode).send(data);
@@ -159,6 +167,73 @@ fastify.get('/api/transacciones-bds', async (req, reply) => {
       bd_backup: { host: 'bd-relacional-backup', online: false, rol: 'MÓDULO B SIN CONEXIÓN', cantidad: 0, transacciones: [] }
     });
   }
+});
+
+const eventosFailover = [];
+let failoverPostgres;
+let ultimoMongo;
+let consultaSalud;
+
+async function consultarMonitor(url) {
+  try {
+    const { statusCode, headers, body } = await request(`${url}/monitor`, {
+      signal: AbortSignal.timeout(10000)
+    });
+    if (statusCode !== 200) {
+      await body.dump();
+      return { estado: 'error', nodo: headers['x-node-id'] || null };
+    }
+    return { estado: 'online', nodo: headers['x-node-id'] || null, datos: await body.json() };
+  } catch {
+    return { estado: 'sin_respuesta', nodo: null };
+  }
+}
+
+function agregarFailover(motor, desde, hacia, fecha) {
+  eventosFailover.unshift({ motor, desde, hacia, fecha });
+  if (eventosFailover.length > 20) eventosFailover.pop();
+}
+
+async function obtenerSalud() {
+  const [dominio, auditoria] = await Promise.all([
+    consultarMonitor(MODULO_B_URL), consultarMonitor(MODULO_C_URL)
+  ]);
+  const fecha = new Date().toISOString();
+  const postgres = dominio.datos || null;
+  const mongo = auditoria.datos || null;
+
+  if (postgres?.failover && failoverPostgres !== postgres.failover.id) {
+    failoverPostgres = postgres.failover.id;
+    agregarFailover('PostgreSQL', postgres.failover.desde, postgres.failover.hacia, fecha);
+  }
+  if (mongo?.tipo === 'Replica set' && mongo.primario && mongo.escribible) {
+    if (ultimoMongo?.set === mongo.set &&
+        (ultimoMongo.primario !== mongo.primario ||
+          (ultimoMongo.eleccion && mongo.eleccion && ultimoMongo.eleccion !== mongo.eleccion))) {
+      agregarFailover('MongoDB', ultimoMongo.primario, mongo.primario, fecha);
+    }
+    ultimoMongo = mongo;
+  }
+
+  return {
+    fecha,
+    servicios: [
+      { nombre: 'Módulo A · Gateway', estado: 'online', nodo: NODE_ID },
+      { nombre: 'Módulo B · Dominio', estado: dominio.estado, nodo: dominio.nodo },
+      { nombre: 'Módulo C · Auditoría', estado: auditoria.estado, nodo: auditoria.nodo }
+    ],
+    postgres,
+    mongo,
+    eventos: [...eventosFailover]
+  };
+}
+
+fastify.get('/api/monitor/salud', async (_req, reply) => {
+  reply.header('Cache-Control', 'no-store');
+  if (!consultaSalud) {
+    consultaSalud = obtenerSalud().finally(() => { consultaSalud = null; });
+  }
+  return consultaSalud;
 });
 
 const start = async () => {
