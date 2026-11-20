@@ -75,11 +75,30 @@
       gap: 1.25rem;
     }
 
+    .grid-burst {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .burst-metrics {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.6rem;
+      margin-top: 0.85rem;
+    }
+
     @media (max-width: 768px) {
 
       .grid,
       .grid-db {
         grid-template-columns: 1fr;
+      }
+
+      .grid-burst,
+      .burst-metrics {
+        grid-template-columns: repeat(2, 1fr);
       }
     }
 
@@ -95,6 +114,27 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 1rem;
+    }
+
+    .metric-box {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+    }
+
+    .metric-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+
+    .metric-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 0.2rem;
+      font-family: monospace;
     }
 
     h2 {
@@ -193,8 +233,45 @@
       background: var(--accent-hover);
     }
 
+    .btn-row {
+      display: flex;
+      gap: 0.65rem;
+      align-items: center;
+    }
+
+    button.btn-burst {
+      flex: 1;
+      padding: 0.7rem 1rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button.btn-burst:hover {
+      background: var(--accent-hover);
+    }
+
+    button.btn-stop {
+      padding: 0.7rem 1.2rem;
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button.btn-stop:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.28);
+    }
+
     button:disabled {
-      opacity: 0.6;
+      opacity: 0.55;
       cursor: not-allowed;
     }
 
@@ -213,6 +290,23 @@
       color: var(--text);
     }
 
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 0.85rem;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--success));
+      transition: width 0.18s ease;
+    }
+
     /* Consola y Tabla */
     pre {
       background: #0b1120;
@@ -224,6 +318,8 @@
       font-size: 0.8rem;
       overflow-x: auto;
       min-height: 160px;
+      max-height: 410px;
+      overflow-y: auto;
     }
 
     table {
@@ -283,17 +379,17 @@
   <div class="container">
     <header>
       <div>
-        <h1>SneakerStore - Checkout Directo</h1>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">Venta procesada mediante arquitectura
-          distribuida (Fastify &rarr; FastAPI &rarr; Go)</p>
+        <h1>SneakerStore - Checkout Distribuido</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">Operación de transacciones
+          individuales y ráfagas controladas (Fastify &rarr; FastAPI &rarr; Go)</p>
       </div>
       <span class="badge-status">Sistema Online</span>
     </header>
 
     <div class="grid">
-
+      <!-- Operación Individual -->
       <div class="card">
-        <h2>1. Selecciona tu Zapatilla</h2>
+        <h2>1. Operación Individual (Selecciona Zapatilla)</h2>
         <div class="catalog">
           <div class="product-card selected" onclick="selectProduct('Nike Air Max 90', 89990, this)">
             <div class="product-icon">👟</div>
@@ -312,20 +408,29 @@
           </div>
         </div>
 
-        <h2>2. Datos de Envío y Pago</h2>
+        <h2>2. Datos de Evento / Transacción Individual</h2>
         <form id="orderForm">
+          <div class="form-group">
+            <label>Tipo de Evento a Enviar</label>
+            <select id="eventType">
+              <option value="valid" selected>Transacción Válida (Compra normal)</option>
+              <option value="negative_amount">Evento Fallido: Monto negativo (-5000)</option>
+              <option value="missing_fields">Evento Fallido: Campos obligatorios incompletos</option>
+              <option value="invalid_json">Evento Fallido: JSON malformado / roto</option>
+            </select>
+          </div>
           <div class="form-group">
             <label>Cuenta Comprador</label>
             <input type="text" id="origen" value="CLI-MARTIN-01" required>
           </div>
           <div class="form-group">
             <label>Cuenta Comercio</label>
-            <input type="text" id="destino" value="COMERCIO-SNEAKERSTORE" readonly style="opacity: 0.8;">
+            <input type="text" id="destino" value="COMERCIO-SNEAKERSTORE">
           </div>
           <div class="form-group" style="display: flex; gap: 0.5rem;">
             <div style="flex: 2;">
               <label>Monto a Pagar ($)</label>
-              <input type="number" id="monto" value="89990" readonly style="opacity: 0.8;">
+              <input type="number" id="monto" value="89990" step="any">
             </div>
             <div style="flex: 1;">
               <label>Talla (EU)</label>
@@ -338,16 +443,89 @@
             </div>
           </div>
           <input type="hidden" id="productoNombre" value="Nike Air Max 90">
-          <button type="submit" id="btnSubmit" class="btn-buy">Confirmar Compra</button>
+          <button type="submit" id="btnSubmit" class="btn-buy">Enviar Transacción Individual</button>
         </form>
       </div>
 
+      <!-- Consola de Respuesta del Gateway -->
       <div class="card">
-        <h2>Detalle de la Transacción (Gateway)</h2>
-        <pre id="responseLog">// Selecciona un calzado y confirma tu compra para ver la persistencia...</pre>
+        <h2>Detalle de la Transacción / Ráfaga (Gateway)</h2>
+        <pre
+          id="responseLog">// Selecciona un calzado y envía una transacción individual o lanza una ráfaga controlada...</pre>
       </div>
     </div>
 
+    <!-- Generador de Ráfagas Controladas -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+        <div>
+          <h2 style="margin-bottom: 0.2rem;">3. Generador de Ráfagas Controladas</h2>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">Envía múltiples transacciones controlando volumen,
+            concurrencia, intervalo y tasa de eventos fallidos hacia <code>/api/transacciones</code></p>
+        </div>
+        <span id="burstStatusBadge" class="pill pill-ok">En espera</span>
+      </div>
+
+      <form id="burstForm">
+        <div class="grid-burst">
+          <div>
+            <label>Cantidad de Eventos</label>
+            <input type="number" id="burstCount" min="1" max="200" value="10" required>
+          </div>
+          <div>
+            <label>Concurrencia (por lote)</label>
+            <input type="number" id="burstConcurrency" min="1" max="20" value="2" required>
+          </div>
+          <div>
+            <label>Intervalo entre lotes (ms)</label>
+            <input type="number" id="burstDelay" min="0" max="5000" step="50" value="250" required>
+          </div>
+          <div>
+            <label>Perfil de Eventos</label>
+            <select id="burstProfile">
+              <option value="valid" selected>100% Transacciones Válidas</option>
+              <option value="mixed">Mixta (80% Válidas / 20% Fallos)</option>
+              <option value="stress_errors">Mixta (50% Válidas / 50% Fallos)</option>
+              <option value="only_errors">100% Eventos Fallidos (Validación/JSON)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" id="btnStartBurst" class="btn-burst">Lanzar Ráfaga Controlada</button>
+          <button type="button" id="btnStopBurst" class="btn-stop" disabled>Detener</button>
+        </div>
+      </form>
+
+      <div class="progress-track">
+        <div id="burstProgressBar" class="progress-fill"></div>
+      </div>
+
+      <div class="burst-metrics">
+        <div class="metric-box">
+          <div class="metric-label">Progreso</div>
+          <div id="metricProgress" class="metric-value">0 / 0</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Exitosas (201)</div>
+          <div id="metricOk" class="metric-value" style="color: var(--success);">0</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Rechazadas (4xx)</div>
+          <div id="metricWarn" class="metric-value" style="color: var(--warning);">0</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Fallos/Red (5xx)</div>
+          <div id="metricErr" class="metric-value" style="color: var(--danger);">0</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Latencia Prom.</div>
+          <div id="metricLatency" class="metric-value" style="color: #38bdf8;">0 ms</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auditorías MongoDB Atlas -->
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
         <h2>Auditoría de Compras en MongoDB Atlas (Módulo C)</h2>
@@ -371,6 +549,7 @@
       </table>
     </div>
 
+    <!-- Comparación PostgreSQL -->
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
         <div>
@@ -415,7 +594,7 @@
         <div class="subcard">
           <div class="db-header">
             <div>
-              <strong style="font-size: 0.9rem;">BD 2: Respaldo</strong>
+              <strong style="font-size: 0.9rem;">BD 2: Respaldo (<code>bd-relacional-backup</code>)</strong>
               <div id="dbBackupRole" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Consultando
                 rol...</div>
             </div>
@@ -442,22 +621,57 @@
   </div>
 
   <script>
+    const PRODUCTS = [
+      { name: 'Nike Air Max 90', price: 89990 },
+      { name: 'Adidas Ultraboost', price: 119990 },
+      { name: 'Puma Suede Classic', price: 59990 }
+    ];
     let currentProductName = 'Nike Air Max 90';
+    let currentProductPrice = 89990;
 
     function selectProduct(name, price, element) {
       document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
       element.classList.add('selected');
       currentProductName = name;
-      document.getElementById('monto').value = price;
+      currentProductPrice = price;
+      if (document.getElementById('eventType').value === 'valid') {
+        document.getElementById('monto').value = price;
+      }
       document.getElementById('productoNombre').value = name;
     }
 
     const form = document.getElementById('orderForm');
+    const eventTypeSelect = document.getElementById('eventType');
     const log = document.getElementById('responseLog');
     const btnSubmit = document.getElementById('btnSubmit');
     const btnRefresh = document.getElementById('btnRefresh');
     const btnRefreshDBs = document.getElementById('btnRefreshDBs');
     const tbody = document.getElementById('auditTableBody');
+
+    // Controles de Ráfaga
+    const burstForm = document.getElementById('burstForm');
+    const btnStartBurst = document.getElementById('btnStartBurst');
+    const btnStopBurst = document.getElementById('btnStopBurst');
+    const burstStatusBadge = document.getElementById('burstStatusBadge');
+    const burstProgressBar = document.getElementById('burstProgressBar');
+    const metricProgress = document.getElementById('metricProgress');
+    const metricOk = document.getElementById('metricOk');
+    const metricWarn = document.getElementById('metricWarn');
+    const metricErr = document.getElementById('metricErr');
+    const metricLatency = document.getElementById('metricLatency');
+
+    let burstRunning = false;
+    let burstCancelled = false;
+
+    eventTypeSelect.addEventListener('change', () => {
+      const mode = eventTypeSelect.value;
+      const montoInput = document.getElementById('monto');
+      if (mode === 'negative_amount') {
+        montoInput.value = -5000;
+      } else if (mode === 'valid') {
+        montoInput.value = currentProductPrice;
+      }
+    });
 
     async function loadAudits() {
       try {
@@ -559,6 +773,7 @@
 
         if (data.sincronizadas) {
           syncBadge.className = 'pill pill-ok';
+          syncBadge.textContent = `Sincronizadas (${idsSet.size} IDs iguales)`;
         } else if (data.bd_1?.online && data.bd_backup?.online) {
           syncBadge.className = 'pill pill-warn';
           syncBadge.textContent = 'Diferencia detectada';
@@ -576,36 +791,231 @@
       }
     }
 
+    // Envío de Transacción / Evento Individual
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       btnSubmit.disabled = true;
-      btnSubmit.textContent = 'Procesando pago...';
-      log.textContent = 'Enviando orden a través del API Gateway...';
+      btnSubmit.textContent = 'Procesando evento...';
+      log.textContent = 'Enviando orden individual a través del API Gateway...';
 
+      const mode = eventTypeSelect.value;
       const talla = document.getElementById('talla').value;
-      const payload = {
-        cuenta_origen: document.getElementById('origen').value,
-        cuenta_destino: document.getElementById('destino').value,
-        monto: parseFloat(document.getElementById('monto').value),
-        moneda: 'CLP',
-        descripcion: `Compra zapatillas: ${currentProductName} (Talla EU ${talla})`
-      };
+      let rawBody;
 
+      if (mode === 'invalid_json') {
+        rawBody = '{"cuenta_origen": "CLI-TEST", "monto": 5000,';
+      } else if (mode === 'missing_fields') {
+        rawBody = JSON.stringify({
+          cuenta_origen: document.getElementById('origen').value,
+          cuenta_destino: document.getElementById('destino').value
+        });
+      } else {
+        rawBody = JSON.stringify({
+          cuenta_origen: document.getElementById('origen').value,
+          cuenta_destino: document.getElementById('destino').value,
+          monto: parseFloat(document.getElementById('monto').value),
+          moneda: 'CLP',
+          descripcion: mode === 'negative_amount'
+            ? `Prueba evento monto negativo (${currentProductName})`
+            : `Compra zapatillas: ${currentProductName} (Talla EU ${talla})`
+        });
+      }
+
+      try {
+        const inicio = performance.now();
+        const res = await fetch('/api/transacciones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: rawBody
+        });
+        const latencia = Math.round(performance.now() - inicio);
+        const json = await res.json();
+        log.textContent = `// HTTP ${res.status} (${latencia} ms)\n` + JSON.stringify(json, null, 2);
+        await Promise.all([loadAudits(), loadDatabasesComparison()]);
+      } catch (err) {
+        log.textContent = 'Error de red: ' + err.message;
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Enviar Transacción Individual';
+      }
+    });
+
+    // Construcción de eventos para Ráfaga Controlada
+    function buildBurstRequest(index, profile) {
+      const prod = PRODUCTS[index % PRODUCTS.length];
+      const talla = 40 + (index % 4);
+      const clientId = `CLI-RAFAGA-${String(index + 1).padStart(2, '0')}`;
+
+      let isError = false;
+      if (profile === 'only_errors') isError = true;
+      else if (profile === 'mixed') isError = (index + 1) % 5 === 0; // 20% fallos
+      else if (profile === 'stress_errors') isError = (index + 1) % 2 === 0; // 50% fallos
+
+      if (!isError) {
+        return {
+          tipo: 'VALIDA',
+          body: JSON.stringify({
+            cuenta_origen: clientId,
+            cuenta_destino: 'COMERCIO-SNEAKERSTORE',
+            monto: prod.price,
+            moneda: 'CLP',
+            descripcion: `Ráfaga #${index + 1}: ${prod.name} (Talla EU ${talla})`
+          })
+        };
+      }
+
+      // Alternar entre los 3 tipos de errores auditables
+      const errorKind = index % 3;
+      if (errorKind === 0) {
+        return {
+          tipo: 'MONTO_NEGATIVO',
+          body: JSON.stringify({
+            cuenta_origen: clientId,
+            cuenta_destino: 'COMERCIO-SNEAKERSTORE',
+            monto: -1000 * ((index % 5) + 1),
+            moneda: 'CLP',
+            descripcion: `Ráfaga #${index + 1}: fallo monto negativo`
+          })
+        };
+      } else if (errorKind === 1) {
+        return {
+          tipo: 'CAMPOS_INCOMPLETOS',
+          body: JSON.stringify({
+            cuenta_origen: clientId,
+            cuenta_destino: 'COMERCIO-SNEAKERSTORE'
+          })
+        };
+      }
+      return {
+        tipo: 'JSON_INVALIDO',
+        body: `{"cuenta_origen":"${clientId}","monto":${prod.price},`
+      };
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function sendSingleBurstItem(index, profile) {
+      const reqInfo = buildBurstRequest(index, profile);
+      const t0 = performance.now();
       try {
         const res = await fetch('/api/transacciones', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: reqInfo.body
         });
-
-        const json = await res.json();
-        log.textContent = JSON.stringify(json, null, 2);
-        await Promise.all([loadAudits(), loadDatabasesComparison()]);
+        const elapsed = performance.now() - t0;
+        let data = null;
+        try { data = await res.json(); } catch (_) { }
+        return { index: index + 1, tipo: reqInfo.tipo, status: res.status, elapsed, ok: res.status === 201, data };
       } catch (err) {
-        log.textContent = 'Error: ' + err.message;
+        const elapsed = performance.now() - t0;
+        return { index: index + 1, tipo: reqInfo.tipo, status: 0, elapsed, ok: false, error: err.message };
+      }
+    }
+
+    btnStopBurst.addEventListener('click', () => {
+      if (burstRunning) {
+        burstCancelled = true;
+        btnStopBurst.disabled = true;
+        burstStatusBadge.className = 'pill pill-warn';
+        burstStatusBadge.textContent = 'Deteniendo...';
+      }
+    });
+
+    burstForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (burstRunning) return;
+
+      const total = Math.max(1, Math.min(200, parseInt(document.getElementById('burstCount').value, 10) || 10));
+      const concurrency = Math.max(1, Math.min(20, parseInt(document.getElementById('burstConcurrency').value, 10) || 1));
+      const delayMs = Math.max(0, Math.min(5000, parseInt(document.getElementById('burstDelay').value, 10) || 0));
+      const profile = document.getElementById('burstProfile').value;
+
+      burstRunning = true;
+      burstCancelled = false;
+      btnStartBurst.disabled = true;
+      btnSubmit.disabled = true;
+      btnStopBurst.disabled = false;
+
+      burstStatusBadge.className = 'pill pill-warn';
+      burstStatusBadge.textContent = 'Ejecutando ráfaga...';
+      burstProgressBar.style.width = '0%';
+
+      let completed = 0;
+      let okCount = 0;
+      let warnCount = 0;
+      let errCount = 0;
+      let totalLatency = 0;
+      const resultsLog = [];
+      const startTime = performance.now();
+
+      const updateMetricsUI = () => {
+        const pct = Math.round((completed / total) * 100);
+        burstProgressBar.style.width = `${pct}%`;
+        metricProgress.textContent = `${completed} / ${total}`;
+        metricOk.textContent = String(okCount);
+        metricWarn.textContent = String(warnCount);
+        metricErr.textContent = String(errCount);
+        metricLatency.textContent = completed > 0 ? `${Math.round(totalLatency / completed)} ms` : '0 ms';
+      };
+
+      updateMetricsUI();
+      log.textContent = `// Iniciando ráfaga controlada: ${total} eventos | concurrencia: ${concurrency} | intervalo: ${delayMs} ms | perfil: ${profile}\n`;
+
+      try {
+        for (let offset = 0; offset < total; offset += concurrency) {
+          if (burstCancelled) break;
+
+          const batchSize = Math.min(concurrency, total - offset);
+          const promises = [];
+          for (let j = 0; j < batchSize; j++) {
+            promises.push(sendSingleBurstItem(offset + j, profile));
+          }
+
+          const batchResults = await Promise.all(promises);
+          for (const r of batchResults) {
+            completed++;
+            totalLatency += r.elapsed;
+            if (r.status === 201) okCount++;
+            else if (r.status >= 400 && r.status < 500) warnCount++;
+            else errCount++;
+
+            resultsLog.push(`#${r.index} [${r.tipo}] -> HTTP ${r.status || 'NET_ERR'} (${Math.round(r.elapsed)} ms)`);
+          }
+
+          updateMetricsUI();
+          log.textContent = `// Ráfaga en progreso (${completed}/${total})\n` + resultsLog.slice(-15).join('\n');
+
+          if (offset + concurrency < total && !burstCancelled && delayMs > 0) {
+            await sleep(delayMs);
+          }
+        }
+
+        const totalSec = ((performance.now() - startTime) / 1000).toFixed(2);
+        const resumen = {
+          estado: burstCancelled ? 'DETENIDA_POR_USUARIO' : 'COMPLETADA',
+          total_enviadas: completed,
+          exitosas_201: okCount,
+          rechazadas_4xx: warnCount,
+          errores_5xx_red: errCount,
+          latencia_promedio_ms: completed > 0 ? Math.round(totalLatency / completed) : 0,
+          duracion_total_seg: Number(totalSec)
+        };
+
+        burstStatusBadge.className = burstCancelled ? 'pill pill-warn' : 'pill pill-ok';
+        burstStatusBadge.textContent = burstCancelled
+          ? `Detenida (${completed}/${total})`
+          : `Completada en ${totalSec}s`;
+
+        log.textContent = `// Resumen de Ráfaga Controlada\n` + JSON.stringify(resumen, null, 2) + '\n\n// Últimos eventos:\n' + resultsLog.slice(-10).join('\n');
+        await Promise.all([loadAudits(), loadDatabasesComparison()]);
       } finally {
+        burstRunning = false;
+        btnStartBurst.disabled = false;
         btnSubmit.disabled = false;
-        btnSubmit.textContent = 'Confirmar Compra';
+        btnStopBurst.disabled = true;
       }
     });
 
